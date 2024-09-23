@@ -3,7 +3,7 @@ import { DeleteQueryBuilder } from './builders/delete-query-builder'
 import { InsertQueryBuilder } from './builders/insert-query-builder'
 import { SelectQueryBuilder } from './builders/select-query-builder'
 import { UpdateQueryBuilder } from './builders/update-query-builder'
-import camelize from 'camelize'
+import { camelCase } from './utils/camel-case'
 
 export class Database {
   private _pg: Pool | PoolClient
@@ -19,7 +19,13 @@ export class Database {
 
     return {
       ...result,
-      rows: camelize(result.rows) as T[]
+      rows: result.rows.map(row => {
+        const keys = Object.keys(row)
+
+        return Object.fromEntries(
+          keys.map(key => [camelCase(key), row[key]])
+        )
+      }) as T[]
     }
   }
 

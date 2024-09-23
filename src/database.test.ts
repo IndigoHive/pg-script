@@ -1,5 +1,5 @@
 import { Database } from './database'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 describe('Database', () => {
   describe('SELECT', () => {
@@ -88,6 +88,21 @@ describe('Database', () => {
 
       expect(sql).toBe('DELETE FROM "posts" WHERE (id = $1)')
       expect(params).toEqual([1])
+    })
+  })
+
+  test('converts row keys to camel case', async () => {
+    const pg = { query: vi.fn() }
+    pg.query.mockResolvedValue({
+      rows: [{ id: 1, user_id: 2 }]
+    })
+    const db = new Database(pg as any)
+
+    const result = await db.SELECT`id, user_id`.FROM`posts`
+
+    expect(result.rows[0]).toMatchObject({
+      id: 1,
+      userId: 2
     })
   })
 })
