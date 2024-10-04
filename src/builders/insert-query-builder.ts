@@ -7,6 +7,11 @@ type InsertIntoValue = {
   params: any[]
 }
 
+type OnConflictValue = {
+  template: TemplateStringsArray | string[]
+  params: any[]
+}
+
 type ReturningValue = {
   template: TemplateStringsArray | string[]
   params: any[]
@@ -23,7 +28,7 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
   private _insertInto: InsertIntoValue | null
   private _values: Record<string, any>
   private _returning: ReturningValue[]
-  private _onConflict: string | null
+  private _onConflict: OnConflictValue | null
   private _set: SetValue[]
 
   constructor (
@@ -31,7 +36,7 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
     insertInto: InsertIntoValue | null = null,
     values: Record<string, any> = {},
     returning: ReturningValue[] = [],
-    onConflict: string | null = null,
+    onConflict: OnConflictValue | null = null,
     set: SetValue[] = []
   ) {
     this.db = db
@@ -54,8 +59,8 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
     return this.clone({ returning: [...this._returning, { template, params }] })
   }
 
-  ON_CONFLICT<U extends QueryResultRow = T> (onConflict: 'DO NOTHING' | 'DO UPDATE'): InsertQueryBuilder<U> {
-    return this.clone({ onConflict })
+  ON_CONFLICT<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): InsertQueryBuilder<U> {
+    return this.clone({ onConflict: { template, params } })
   }
 
   SET<U extends QueryResultRow = T> (values: Record<string, any>): InsertQueryBuilder<U>
@@ -80,16 +85,16 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
 
     const valuesSql = `(${columns}) VALUES (${slots})`
     const valuesParams = Object.values(this._values)
-    const onConflictSql = this.onConflictSql()
-    const [setSql, setParams] = this.setSql(valuesParams.length)
+    const [onConflictSql, onConflictParams] = this.onConflictSql(valuesParams.length)
+    const [setSql, setParams] = this.setSql(valuesParams.length + onConflictParams.length)
 
-    const [returningSql, returningParams] = this.returningSql(setParams.length + valuesParams.length)
+    const [returningSql, returningParams] = this.returningSql(setParams.length + valuesParams.length + onConflictParams.length)
 
     const sql = [insertIntoSql, valuesSql, onConflictSql, setSql, returningSql]
       .filter(part => part !== '')
       .join(' ')
 
-    const params = [...valuesParams, ...setParams, ...returningParams]
+    const params = [...valuesParams, ...onConflictParams, ...setParams, ...returningParams]
 
     return [sql, params]
   }
@@ -175,13 +180,11 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
     return [sql, params]
   }
 
-  private onConflictSql (): string {
-    if (this._onConflict === 'DO NOTHING') {
-      return 'ON CONFLICT DO NOTHING'
-    } else if (this._onConflict === 'DO UPDATE') {
-      return 'ON CONFLICT DO UPDATE'
-    } else {
-      return ''
-    }
+  private onConflictSql (index: number): [sql: string, params: any[]] {
+    const sql = this._onConflict
+      ? `ON CONFLICT ${this._onConflict.template[0]}`
+      : ''
+
+    return [sql, []]
   }
 }
