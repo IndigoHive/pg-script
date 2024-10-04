@@ -12,6 +12,11 @@ type ReturningValue = {
   params: any[]
 }
 
+type SetValue = {
+  template: TemplateStringsArray | string[]
+  params: any[]
+}
+
 export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike<QueryResult<T>> {
   private db: Database
 
@@ -19,19 +24,22 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
   private _values: Record<string, any>
   private _returning: ReturningValue[]
   private _onConflict: string | null
+  private _set: SetValue[]
 
   constructor (
     db: Database,
     insertInto: InsertIntoValue | null = null,
     values: Record<string, any> = {},
     returning: ReturningValue[] = [],
-    onConflict: string | null = null
+    onConflict: string | null = null,
+    set: SetValue[] = []
   ) {
     this.db = db
     this._insertInto = insertInto
     this._values = values
     this._returning = returning
     this._onConflict = onConflict
+    this._set = set
   }
 
   INSERT_INTO (template: TemplateStringsArray, ...params: any[]): InsertQueryBuilder<T> {
@@ -50,6 +58,20 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
     return this.clone({ onConflict })
   }
 
+  SET<U extends QueryResultRow = T> (values: Record<string, any>): InsertQueryBuilder<U>
+  SET<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): InsertQueryBuilder<U>
+  SET<U extends QueryResultRow = T> (template: TemplateStringsArray | Record<string, any>, ...params: any[]): InsertQueryBuilder<U> {
+    if (Array.isArray(template)) {
+      return this.clone({ set: [...this._set, { template, params }] })
+    } else {
+      const set = Object.entries(template).filter(([key, value]) => value !== undefined).map(([key, value]) => ({
+        template: [`"${snakeCase(key)}" = `, ''],
+        params: [value]
+      }))
+      return this.clone({ set: [...this._set, ...set] })
+    }
+  }
+
   toSql (): [sql: string, params: any[]] {
     const insertIntoSql = this.insertIntoSql()
 
@@ -59,14 +81,15 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
     const valuesSql = `(${columns}) VALUES (${slots})`
     const valuesParams = Object.values(this._values)
     const onConflictSql = this.onConflictSql()
+    const [setSql, setParams] = this.setSql(valuesParams.length)
 
-    const [returningSql, returningParams] = this.returningSql(valuesParams.length)
+    const [returningSql, returningParams] = this.returningSql(setParams.length + valuesParams.length)
 
-    const sql = [insertIntoSql, valuesSql, onConflictSql, returningSql]
+    const sql = [insertIntoSql, valuesSql, onConflictSql, setSql, returningSql]
       .filter(part => part !== '')
       .join(' ')
 
-    const params = [...valuesParams, ...returningParams]
+    const params = [...valuesParams, ...setParams, ...returningParams]
 
     return [sql, params]
   }
@@ -91,18 +114,43 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
     values?: InsertQueryBuilder<T>['_values']
     returning?: InsertQueryBuilder<T>['_returning']
     onConflict?: InsertQueryBuilder<T>['_onConflict']
+    set?: InsertQueryBuilder<T>['_set']
   }): InsertQueryBuilder<U> {
     return new InsertQueryBuilder<U>(
       this.db,
       partial.insertInto ?? this._insertInto,
       partial.values ?? this._values,
       partial.returning ?? this._returning,
-      partial.onConflict ?? this._onConflict
+      partial.onConflict ?? this._onConflict,
+      partial.set ?? this._set
     )
   }
 
   private insertIntoSql (): string {
     return this._insertInto ? `INSERT INTO "${this._insertInto.template[0]}"` : ''
+  }
+
+  private setSql (index: number): [sql: string, params: any[]] {
+    const parts = this._set.map(set => {
+      let part = ''
+
+      for (let i = 0; i < set.template.length - 1; i++) {
+        part += set.template[i]
+        part += `$${++index}`
+      }
+
+      part += set.template[set.template.length - 1]
+
+      return part
+    })
+
+    const sql = parts.length === 0
+      ? ''
+      : `SET ${parts.join(', ')}`
+
+    const params = this._set.flatMap(set => set.params)
+
+    return [sql, params]
   }
 
   private returningSql (index: number): [sql: string, params: any[]] {

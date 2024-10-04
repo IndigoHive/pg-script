@@ -45,6 +45,21 @@ describe('Database', () => {
       expect(sql).toBe('INSERT INTO "posts" ("title") VALUES ($1) RETURNING id')
       expect(params).toEqual(['Hello, World!'])
     })
+
+    test('generates INSERT queries with ON CONFLICT', () => {
+      const db = new Database(null!)
+
+      const [sql, params] = db
+        .INSERT_INTO`posts`
+        .VALUES({ id: 1, title: 'Hello, World!' })
+        .ON_CONFLICT('DO UPDATE')
+        .SET`title = ${'Hello, World! (2)'}`
+        .RETURNING`id`
+        .toSql()
+
+      expect(sql).toBe('INSERT INTO "posts" ("id", "title") VALUES ($1, $2) ON CONFLICT DO UPDATE SET title = $3 RETURNING id')
+      expect(params).toEqual([1, 'Hello, World!', 'Hello, World! (2)'])
+    })
   })
 
   describe('UPDATE', () => {
