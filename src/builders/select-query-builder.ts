@@ -1,6 +1,7 @@
 import { QueryResult, QueryResultRow } from 'pg'
 import { Database } from '../database'
 import { snakeCase } from '../utils/snake-case'
+import { NotFoundError } from '../errors'
 
 type SelectValue = {
   template: TemplateStringsArray | string[]
@@ -64,6 +65,26 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     callback: (builder: SelectQueryBuilder<T>) => SelectQueryBuilder<T>
   ): SelectQueryBuilder<T> {
     return condition ? callback(this) : this
+  }
+
+  async find<U extends QueryResultRow = T> (options: { error?: string } = {}): Promise<U> {
+    const [sql, params] = this.LIMIT(1).toSql()
+
+    const result = await this.db.query<U>(sql, params)
+
+    if (result.rows.length === 0) {
+      throw new NotFoundError(options.error ?? 'method find returned no results')
+    }
+
+    return result.rows[0]
+  }
+
+  async first<U extends QueryResultRow = T> (): Promise<U | null> {
+    const [sql, params] = this.LIMIT(1).toSql()
+
+    const result = await this.db.query<U>(sql, params)
+
+    return result.rows[0] ?? null
   }
 
   SELECT<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<U> {
