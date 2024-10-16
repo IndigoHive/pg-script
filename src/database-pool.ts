@@ -10,6 +10,10 @@ export class DatabasePool extends Database {
     this.pg = pg
   }
 
+  get pool (): Pool {
+    return this.pg
+  }
+
   async transaction<T> (
     callback: (client: DatabasePoolClient) => Promise<T>
   ): Promise<T> {
