@@ -147,12 +147,14 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     const [joinSql, joinParams] = this.joinSql(selectParams.length)
     const [whereSql, whereParams] = this.whereSql(selectParams.length + joinParams.length)
     const [orderBySql, orderByParams] = this.orderBySql(selectParams.length + joinParams.length + whereParams.length)
+    const [limitSql, limitParams] = this.limitSql(selectParams.length + joinParams.length + whereParams.length + orderByParams.length)
+    const [offsetSql, offsetParams] = this.offsetSql(selectParams.length + joinParams.length + whereParams.length + orderByParams.length + limitParams.length)
 
-    const sql = [selectSql,  fromSql, joinSql, whereSql, orderBySql]
+    const sql = [selectSql,  fromSql, joinSql, whereSql, orderBySql, limitSql, offsetSql]
       .filter(part => part !== '')
       .join(' ')
 
-    const params = [...selectParams, ...joinParams, ...whereParams, ...orderByParams]
+    const params = [...selectParams, ...joinParams, ...whereParams, ...orderByParams, ...limitParams, ...offsetParams]
 
     return [sql, params]
   }
@@ -285,5 +287,17 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     const params = this._orderBy.flatMap(orderBy => orderBy.params)
 
     return [sql, params]
+  }
+
+  private limitSql (index: number): [sql: string, params: any[]] {
+    return this._limit === null
+      ? ['', []]
+      : [`LIMIT $${++index}`, [this._limit]]
+  }
+
+  private offsetSql (index: number): [sql: string, params: any[]] {
+    return this._offset === null
+      ? ['', []]
+      : [`OFFSET $${++index}`, [this._offset]]
   }
 }

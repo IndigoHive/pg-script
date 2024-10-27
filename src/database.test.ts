@@ -17,6 +17,22 @@ describe('Database', () => {
       expect(params).toEqual(['published'])
     })
 
+    test('generates SELECT queries', () => {
+      const db = new Database(null!)
+
+      const [sql, params] = db
+        .SELECT`id, name`
+        .FROM`posts`
+        .WHERE`status = ${'published'}`
+        .AND`deleted IS FALSE`
+        .LIMIT(10)
+        .OFFSET(20)
+        .toSql()
+
+      expect(sql).toBe('SELECT id, name FROM "posts" WHERE (status = $1) AND (deleted IS FALSE) LIMIT $2 OFFSET $3')
+      expect(params).toEqual(['published', 10, 20])
+    })
+
     test('generates SELECT queries from objects', () => {
       const db = new Database(null!)
 
