@@ -1,6 +1,7 @@
 import { QueryResult, QueryResultRow } from 'pg'
 import { Database } from '../database'
 import { snakeCase } from '../utils/snake-case'
+import { quoteTableName } from '../utils/quote-table-name'
 
 type DeleteFromValue = {
   template: TemplateStringsArray | string[]
@@ -114,7 +115,8 @@ export class DeleteQueryBuilder<T extends QueryResultRow> implements PromiseLike
   }
 
   private deleteFromSql (): string {
-    return this._deleteFrom ? `DELETE FROM "${this._deleteFrom.template[0]}"` : ''
+    const table = quoteTableName(this._deleteFrom?.template[0] ?? '')
+    return this._deleteFrom ? `DELETE FROM ${table}` : ''
   }
 
   private whereSql (index: number): [sql: string, params: any[]] {

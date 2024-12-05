@@ -1,6 +1,7 @@
 import { QueryResult, QueryResultRow } from 'pg'
 import { Database } from '../database'
 import { snakeCase } from '../utils/snake-case'
+import { quoteTableName } from '../utils/quote-table-name'
 
 type InsertIntoValue = {
   template: TemplateStringsArray | string[]
@@ -132,7 +133,8 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
   }
 
   private insertIntoSql (): string {
-    return this._insertInto ? `INSERT INTO "${this._insertInto.template[0]}"` : ''
+    const table = quoteTableName(this._insertInto?.template[0] ?? '')
+    return this._insertInto ? `INSERT INTO ${table}` : ''
   }
 
   private setSql (index: number): [sql: string, params: any[]] {

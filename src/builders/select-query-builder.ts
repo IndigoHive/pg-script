@@ -2,6 +2,7 @@ import { QueryResult, QueryResultRow } from 'pg'
 import { Database } from '../database'
 import { snakeCase } from '../utils/snake-case'
 import { NotFoundError } from '../errors'
+import { quoteTableName } from '../utils/quote-table-name'
 
 type SelectValue = {
   template: TemplateStringsArray | string[]
@@ -242,7 +243,8 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
   }
 
   private fromSql (): string {
-    return this._from ? `FROM "${this._from.template[0]}"` : ''
+    const table = quoteTableName(this._from?.template[0] ?? '')
+    return this._from ? `FROM ${table}` : ''
   }
 
   private whereSql (index: number): [sql: string, params: any[]] {

@@ -1,6 +1,7 @@
 import { QueryResult, QueryResultRow } from 'pg'
 import { Database } from '../database'
 import { snakeCase } from '../utils/snake-case'
+import { quoteTableName } from '../utils/quote-table-name'
 
 type UpdateValue = {
   template: TemplateStringsArray | string[]
@@ -139,7 +140,8 @@ export class UpdateQueryBuilder<T extends QueryResultRow> implements PromiseLike
   }
 
   private updateSql (): string {
-    return this._update ? `UPDATE "${this._update.template[0]}"` : ''
+    const table = quoteTableName(this._update?.template[0] ?? '')
+    return this._update ? `UPDATE ${table}` : ''
   }
 
   private setSql (index: number): [sql: string, params: any[]] {
