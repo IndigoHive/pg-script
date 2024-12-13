@@ -17,4 +17,10 @@ describe('quoteTableName', () => {
       expect(quoteTableName('public.users')).toBe('public.users')
     })
   })
+
+  describe('when the table name has spaces', () => {
+    test('does not quote table name', () => {
+      expect(quoteTableName('record r')).toBe('record r')
+    })
+  })
 })
