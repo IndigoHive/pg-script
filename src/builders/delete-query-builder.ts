@@ -2,6 +2,8 @@ import { QueryResult, QueryResultRow } from 'pg'
 import { Database } from '../database'
 import { snakeCase } from '../utils/snake-case'
 import { quoteTableName } from '../utils/quote-table-name'
+import { Chain } from '../chain'
+import { merge } from '../utils'
 
 type DeleteFromValue = {
   template: TemplateStringsArray | string[]
@@ -73,17 +75,19 @@ export class DeleteQueryBuilder<T extends QueryResultRow> implements PromiseLike
   }
 
   toSql (): [sql: string, params: any[]] {
-    const deleteFromSql = this.deleteFromSql()
-    const [whereSql, whereParams] = this.whereSql(0)
-    const [returningSql, returningParams] = this.returningSql(whereParams.length)
-
-    const sql = [deleteFromSql, whereSql, returningSql]
-      .filter(part => part !== '')
-      .join(' ')
-
-    const params = [...whereParams, ...returningParams]
-
-    return [sql, params]
+    return new Chain([])
+      .DELETE_FROM([quoteTableName(this._deleteFrom?.template[0] ?? '')])
+      .if(this._where.length > 0, chain => this._where.reduce(
+        (chain, where, index) => index === 0
+          ? chain.WHERE(where.template, ...where.params)
+          : chain.AND(where.template, ...where.params),
+        chain
+      ))
+      .if(
+        this._returning.length > 0,
+        chain => chain.RETURNING(...merge(this._returning, ', '))
+      )
+      .toSql()
   }
 
   async then<TResult1 = QueryResult<T>, TResult2 = never> (
@@ -112,54 +116,5 @@ export class DeleteQueryBuilder<T extends QueryResultRow> implements PromiseLike
       partial.where ?? this._where,
       partial.returning ?? this._returning
     )
-  }
-
-  private deleteFromSql (): string {
-    const table = quoteTableName(this._deleteFrom?.template[0] ?? '')
-    return this._deleteFrom ? `DELETE FROM ${table}` : ''
-  }
-
-  private whereSql (index: number): [sql: string, params: any[]] {
-    const parts = this._where.map(where => {
-      let part = ''
-
-      for (let i = 0; i < where.template.length - 1; i++) {
-        part += where.template[i]
-        part += `$${++index}`
-      }
-
-      part += where.template[where.template.length - 1]
-
-      return part
-    })
-
-    const sql = parts.length === 0
-      ? ''
-      : `WHERE ${parts.map(part => `(${part})`).join(' AND ')}`
-    const params = this._where.flatMap(where => where.params)
-
-    return [sql, params]
-  }
-
-  private returningSql (index: number): [sql: string, params: any[]] {
-    const parts = this._returning.map(returning => {
-      let part = ''
-
-      for (let i = 0; i < returning.template.length - 1; i++) {
-        part += returning.template[i]
-        part += `$${++index}`
-      }
-
-      part += returning.template[returning.template.length - 1]
-
-      return part
-    })
-
-    const sql = parts.length === 0
-      ? ''
-      : `RETURNING ${parts.join(', ')}`
-    const params = this._returning.flatMap(returning => returning.params)
-
-    return [sql, params]
   }
 }

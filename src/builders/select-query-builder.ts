@@ -1,8 +1,8 @@
 import { QueryResult, QueryResultRow } from 'pg'
+import { Chain } from '../chain'
 import { Database } from '../database'
-import { snakeCase } from '../utils/snake-case'
 import { NotFoundError } from '../errors'
-import { quoteTableName } from '../utils/quote-table-name'
+import { merge, quoteTableName, snakeCase } from '../utils'
 
 type SelectValue = {
   template: TemplateStringsArray | string[]
@@ -103,10 +103,16 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
   }
 
   WHERE<U extends QueryResultRow = T> (values: Record<string, any>): SelectQueryBuilder<U>
+  WHERE<U extends QueryResultRow = T> (chain: Chain): SelectQueryBuilder<U>
   WHERE<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<U>
-  WHERE<U extends QueryResultRow = T> (template: TemplateStringsArray | Record<string, any>, ...params: any[]): SelectQueryBuilder<U> {
+  WHERE<U extends QueryResultRow = T> (
+    template: TemplateStringsArray | Record<string, any> | Chain,
+    ...params: any[]
+  ): SelectQueryBuilder<U> {
     if (Array.isArray(template)) {
       return this.clone({ where: [...this._where, { template, params }] })
+    } else if (template instanceof Chain) {
+      return this.clone({ where: [...this._where, { template: ['', ''], params: [template] }] })
     } else {
       const where = Object.entries(template).filter(([key, value]) => value !== undefined).map(([key, value]) => ({
         template: [`"${snakeCase(key)}" = `, ''],
@@ -117,9 +123,17 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
   }
 
   AND<U extends QueryResultRow = T> (values: Record<string, any>): SelectQueryBuilder<U>
+  AND<U extends QueryResultRow = T> (chain: Chain): SelectQueryBuilder<U>
   AND<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<U>
-  AND<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<U> {
-    return this.WHERE(template, ...params)
+  AND<U extends QueryResultRow = T> (
+    template: TemplateStringsArray | Record<string, any> | Chain,
+    ...params: any[]
+  ): SelectQueryBuilder<U> {
+    if (template instanceof Chain) {
+      return this.WHERE(template)
+    } else {
+      return this.WHERE(template as TemplateStringsArray, ...params)
+    }
   }
 
   JOIN (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<T> {
@@ -138,26 +152,34 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     return this.clone({ offset })
   }
 
-  ORDER_BY (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<T> {
-    return this.clone({ orderBy: [...this._orderBy, { template, params }] })
+  ORDER_BY (chain: Chain): SelectQueryBuilder<T>
+  ORDER_BY (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<T>
+  ORDER_BY (
+    template: TemplateStringsArray | Chain,
+    ...params: any[]
+  ): SelectQueryBuilder<T> {
+    if (template instanceof Chain) {
+      return this.clone({ orderBy: [...this._orderBy, { template: ['', ''], params: [template] }] })
+    } else {
+      return this.clone({ orderBy: [...this._orderBy, { template, params }] })
+    }
   }
 
   toSql (): [sql: string, params: any[]] {
-    const [selectSql, selectParams] = this.selectSql()
-    const fromSql = this.fromSql()
-    const [joinSql, joinParams] = this.joinSql(selectParams.length)
-    const [whereSql, whereParams] = this.whereSql(selectParams.length + joinParams.length)
-    const [orderBySql, orderByParams] = this.orderBySql(selectParams.length + joinParams.length + whereParams.length)
-    const [limitSql, limitParams] = this.limitSql(selectParams.length + joinParams.length + whereParams.length + orderByParams.length)
-    const [offsetSql, offsetParams] = this.offsetSql(selectParams.length + joinParams.length + whereParams.length + orderByParams.length + limitParams.length)
-
-    const sql = [selectSql,  fromSql, joinSql, whereSql, orderBySql, limitSql, offsetSql]
-      .filter(part => part !== '')
-      .join(' ')
-
-    const params = [...selectParams, ...joinParams, ...whereParams, ...orderByParams, ...limitParams, ...offsetParams]
-
-    return [sql, params]
+    return new Chain([])
+      .SELECT(...merge(this._select, ', '))
+      .FROM([quoteTableName(this._from?.template[0] ?? '')])
+      .if(this._join.length > 0, chain => chain.JOIN(...merge(this._join)))
+      .if(this._where.length > 0, chain => this._where.reduce(
+        (chain, where, index) => index === 0
+          ? chain.WHERE(where.template, ...where.params)
+          : chain.AND(where.template, ...where.params),
+        chain
+      ))
+      .if(this._orderBy.length > 0, chain => chain.ORDER_BY(...merge(this._orderBy, ', ')))
+      .if(this._limit !== null, chain => chain.LIMIT(['', ''], this._limit!))
+      .if(this._offset !== null, chain => chain.OFFSET(['', ''], this._offset!))
+      .toSql()
   }
 
   async then<TResult1 = QueryResult<T>, TResult2 = never> (
@@ -194,112 +216,5 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
       partial.offset ?? this._offset,
       partial.orderBy ?? this._orderBy
     )
-  }
-
-  private selectSql (): [sql: string, params: any[]] {
-    let index = 0
-
-    const parts = this._select.map(select => {
-      let part = ''
-
-      for (let i = 0; i < select.template.length - 1; i++) {
-        part += select.template[i]
-        part += `$${++index}`
-      }
-
-      part += select.template[select.template.length - 1]
-
-      return part
-    })
-
-    const sql = parts.length === 0
-      ? ''
-      : `SELECT ${parts.join(', ')}`
-    const params = this._select.flatMap(select => select.params)
-
-    return [sql, params]
-  }
-
-  private joinSql (index: number): [sql: string, params: any[]] {
-    const parts = this._join.map(join => {
-      let part = join.clause + ' '
-
-      for (let i = 0; i < join.template.length - 1; i++) {
-        part += join.template[i]
-        part += `$${++index}`
-      }
-
-      part += join.template[join.template.length - 1]
-
-      return part
-    })
-
-    const sql = parts.length === 0
-      ? ''
-      : parts.join(' ')
-    const params = this._join.flatMap(join => join.params)
-
-    return [sql, params]
-  }
-
-  private fromSql (): string {
-    const table = quoteTableName(this._from?.template[0] ?? '')
-    return this._from ? `FROM ${table}` : ''
-  }
-
-  private whereSql (index: number): [sql: string, params: any[]] {
-    const parts = this._where.map(where => {
-      let part = ''
-
-      for (let i = 0; i < where.template.length - 1; i++) {
-        part += where.template[i]
-        part += `$${++index}`
-      }
-
-      part += where.template[where.template.length - 1]
-
-      return part
-    })
-
-    const sql = parts.length === 0
-      ? ''
-      : `WHERE ${parts.map(part => `(${part})`).join(' AND ')}`
-    const params = this._where.flatMap(where => where.params)
-
-    return [sql, params]
-  }
-
-  private orderBySql (index: number): [sql: string, params: any[]] {
-    const parts = this._orderBy.map(orderBy => {
-      let part = ''
-
-      for (let i = 0; i < orderBy.template.length - 1; i++) {
-        part += orderBy.template[i]
-        part += `$${++index}`
-      }
-
-      part += orderBy.template[orderBy.template.length - 1]
-
-      return part
-    })
-
-    const sql = parts.length === 0
-      ? ''
-      : `ORDER BY ${parts.join(', ')}`
-    const params = this._orderBy.flatMap(orderBy => orderBy.params)
-
-    return [sql, params]
-  }
-
-  private limitSql (index: number): [sql: string, params: any[]] {
-    return this._limit === null
-      ? ['', []]
-      : [`LIMIT $${++index}`, [this._limit]]
-  }
-
-  private offsetSql (index: number): [sql: string, params: any[]] {
-    return this._offset === null
-      ? ['', []]
-      : [`OFFSET $${++index}`, [this._offset]]
   }
 }

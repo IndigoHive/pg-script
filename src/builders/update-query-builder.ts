@@ -2,6 +2,8 @@ import { QueryResult, QueryResultRow } from 'pg'
 import { Database } from '../database'
 import { snakeCase } from '../utils/snake-case'
 import { quoteTableName } from '../utils/quote-table-name'
+import { Chain } from '../chain'
+import { merge } from '../utils'
 
 type UpdateValue = {
   template: TemplateStringsArray | string[]
@@ -95,18 +97,20 @@ export class UpdateQueryBuilder<T extends QueryResultRow> implements PromiseLike
   }
 
   toSql (): [sql: string, params: any[]] {
-    const updateSql = this.updateSql()
-    const [setSql, setParams] = this.setSql(0)
-    const [whereSql, whereParams] = this.whereSql(setParams.length)
-    const [returningSql, returningParams] = this.returningSql(setParams.length + whereParams.length)
-
-    const sql = [updateSql, setSql, whereSql, returningSql]
-      .filter(part => part !== '')
-      .join(' ')
-
-    const params = [...setParams, ...whereParams, ...returningParams]
-
-    return [sql, params]
+    return new Chain([])
+      .UPDATE([quoteTableName(this._update?.template[0] ?? '')])
+      .SET(...merge(this._set, ', '))
+      .if(this._where.length > 0, chain => this._where.reduce(
+        (chain, where, index) => index === 0
+          ? chain.WHERE(where.template, ...where.params)
+          : chain.AND(where.template, ...where.params),
+        chain
+      ))
+      .if(
+        this._returning.length > 0,
+        chain => chain.RETURNING(...merge(this._returning, ', '))
+      )
+      .toSql()
   }
 
   async then<TResult1 = QueryResult<T>, TResult2 = never> (
@@ -137,77 +141,5 @@ export class UpdateQueryBuilder<T extends QueryResultRow> implements PromiseLike
       partial.where ?? this._where,
       partial.returning ?? this._returning
     )
-  }
-
-  private updateSql (): string {
-    const table = quoteTableName(this._update?.template[0] ?? '')
-    return this._update ? `UPDATE ${table}` : ''
-  }
-
-  private setSql (index: number): [sql: string, params: any[]] {
-    const parts = this._set.map(set => {
-      let part = ''
-
-      for (let i = 0; i < set.template.length - 1; i++) {
-        part += set.template[i]
-        part += `$${++index}`
-      }
-
-      part += set.template[set.template.length - 1]
-
-      return part
-    })
-
-    const sql = parts.length === 0
-      ? ''
-      : `SET ${parts.join(', ')}`
-
-    const params = this._set.flatMap(set => set.params)
-
-    return [sql, params]
-  }
-
-  private whereSql (index: number): [sql: string, params: any[]] {
-    const parts = this._where.map(where => {
-      let part = ''
-
-      for (let i = 0; i < where.template.length - 1; i++) {
-        part += where.template[i]
-        part += `$${++index}`
-      }
-
-      part += where.template[where.template.length - 1]
-
-      return part
-    })
-
-    const sql = parts.length === 0
-      ? ''
-      : `WHERE ${parts.map(part => `(${part})`).join(' AND ')}`
-    const params = this._where.flatMap(where => where.params)
-
-    return [sql, params]
-  }
-
-  private returningSql (index: number): [sql: string, params: any[]] {
-    const parts = this._returning.map(returning => {
-      let part = ''
-
-      for (let i = 0; i < returning.template.length - 1; i++) {
-        part += returning.template[i]
-        part += `$${++index}`
-      }
-
-      part += returning.template[returning.template.length - 1]
-
-      return part
-    })
-
-    const sql = parts.length === 0
-      ? ''
-      : `RETURNING ${parts.join(', ')}`
-    const params = this._returning.flatMap(returning => returning.params)
-
-    return [sql, params]
   }
 }
