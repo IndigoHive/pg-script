@@ -169,7 +169,16 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     return new Chain([])
       .SELECT(...merge(this._select, ', '))
       .FROM([quoteTableName(this._from?.template[0] ?? '')])
-      .if(this._join.length > 0, chain => chain.JOIN(...merge(this._join)))
+      .if(this._join.length > 0, chain => this._join.reduce(
+        (chain, join) => {
+          if (join.clause === 'LEFT JOIN') {
+            return chain.LEFT_JOIN(join.template, ...join.params)
+          } else {
+            return chain.JOIN(join.template, ...join.params)
+          }
+        },
+        chain
+      ))
       .if(this._where.length > 0, chain => this._where.reduce(
         (chain, where, index) => index === 0
           ? chain.WHERE(where.template, ...where.params)

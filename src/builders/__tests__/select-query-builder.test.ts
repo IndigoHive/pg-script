@@ -98,4 +98,17 @@ describe('SelectQueryBuilder', () => {
 
     expect(sql).toBe('SELECT id, name FROM "users" WHERE (status = $1) ORDER BY (SELECT COUNT(*) FROM posts WHERE (author_id = users.id) AND (status = $2)) DESC, name ASC')
   })
+
+  test('SELECT from_account.name, to_account.name, transaction.amount FROM "transaction" JOIN account from_account ON from_account.id = transaction.from_account_id JOIN account to_account ON to_account.id = transaction.to_account_id', () => {
+    const builder = new SelectQueryBuilder(null!)
+
+    const [sql] = builder
+      .SELECT`from_account.name, to_account.name, transaction.amount`
+      .FROM`transaction`
+      .JOIN`account from_account ON from_account.id = transaction.from_account_id`
+      .JOIN`account to_account ON to_account.id = transaction.to_account_id`
+      .toSql()
+
+    expect(sql).toBe('SELECT from_account.name, to_account.name, transaction.amount FROM "transaction" JOIN account from_account ON from_account.id = transaction.from_account_id JOIN account to_account ON to_account.id = transaction.to_account_id')
+  })
 })
