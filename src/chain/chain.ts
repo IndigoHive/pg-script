@@ -63,6 +63,12 @@ export class Chain {
     return this.chainable('FROM', templateOrChain, params)
   }
 
+  LEFT_JOIN (template: TemplateStringsArray | string[], ...params: any[]): Chain
+  LEFT_JOIN (chain: Chain): Chain
+  LEFT_JOIN (templateOrChain: TemplateStringsArray | string[] | Chain, ...params: any[]): Chain {
+    return this.chainable('LEFT JOIN', templateOrChain, params)
+  }
+
   LIMIT (template: TemplateStringsArray | string[], ...params: any[]): Chain
   LIMIT (chain: Chain): Chain
   LIMIT (templateOrChain: TemplateStringsArray | string[] | Chain, ...params: any[]): Chain {
