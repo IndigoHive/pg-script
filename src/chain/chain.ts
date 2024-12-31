@@ -51,6 +51,12 @@ export class Chain {
     return this.chainable('AS', templateOrChain, params)
   }
 
+  DELETE_FROM (template: TemplateStringsArray | string[], ...params: any[]): Chain
+  DELETE_FROM (chain: Chain): Chain
+  DELETE_FROM (templateOrChain: TemplateStringsArray | string[] | Chain, ...params: any[]): Chain {
+    return this.chainable('DELETE FROM', templateOrChain, params)
+  }
+
   FROM (template: TemplateStringsArray | string[], ...params: any[]): Chain
   FROM (chain: Chain): Chain
   FROM (templateOrChain: TemplateStringsArray | string[] | Chain, ...params: any[]): Chain {
