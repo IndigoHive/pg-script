@@ -112,6 +112,12 @@ export class Chain {
     ])
   }
 
+  UPDATE (template: TemplateStringsArray | string[], ...params: any[]): Chain
+  UPDATE (chain: Chain): Chain
+  UPDATE (templateOrChain: TemplateStringsArray | string[] | Chain, ...params: any[]): Chain {
+    return this.chainable('UPDATE', templateOrChain, params)
+  }
+
   VALUES (...params: any[]): Chain {
     if (params.length === 0) {
       return new Chain([
