@@ -103,10 +103,16 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
   }
 
   WHERE<U extends QueryResultRow = T> (values: Record<string, any>): SelectQueryBuilder<U>
+  WHERE<U extends QueryResultRow = T> (chain: Chain): SelectQueryBuilder<U>
   WHERE<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<U>
-  WHERE<U extends QueryResultRow = T> (template: TemplateStringsArray | Record<string, any>, ...params: any[]): SelectQueryBuilder<U> {
+  WHERE<U extends QueryResultRow = T> (
+    template: TemplateStringsArray | Record<string, any> | Chain,
+    ...params: any[]
+  ): SelectQueryBuilder<U> {
     if (Array.isArray(template)) {
       return this.clone({ where: [...this._where, { template, params }] })
+    } else if (template instanceof Chain) {
+      return this.clone({ where: [...this._where, { template: ['', ''], params: [template] }] })
     } else {
       const where = Object.entries(template).filter(([key, value]) => value !== undefined).map(([key, value]) => ({
         template: [`"${snakeCase(key)}" = `, ''],
@@ -117,9 +123,17 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
   }
 
   AND<U extends QueryResultRow = T> (values: Record<string, any>): SelectQueryBuilder<U>
+  AND<U extends QueryResultRow = T> (chain: Chain): SelectQueryBuilder<U>
   AND<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<U>
-  AND<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<U> {
-    return this.WHERE(template, ...params)
+  AND<U extends QueryResultRow = T> (
+    template: TemplateStringsArray | Record<string, any> | Chain,
+    ...params: any[]
+  ): SelectQueryBuilder<U> {
+    if (template instanceof Chain) {
+      return this.WHERE(template)
+    } else {
+      return this.WHERE(template as TemplateStringsArray, ...params)
+    }
   }
 
   JOIN (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<T> {
