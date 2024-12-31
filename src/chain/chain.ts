@@ -26,7 +26,6 @@ export class Chain {
     const parts: string[] = []
     const params: any[] = []
 
-
     for (const fragment of this._fragments) {
       const [fragmentSql, fragmentParams] = fragment.toSql(index)
 

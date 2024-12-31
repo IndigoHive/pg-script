@@ -152,13 +152,22 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     return this.clone({ offset })
   }
 
-  ORDER_BY (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<T> {
-    return this.clone({ orderBy: [...this._orderBy, { template, params }] })
+  ORDER_BY (chain: Chain): SelectQueryBuilder<T>
+  ORDER_BY (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<T>
+  ORDER_BY (
+    template: TemplateStringsArray | Chain,
+    ...params: any[]
+  ): SelectQueryBuilder<T> {
+    if (template instanceof Chain) {
+      return this.clone({ orderBy: [...this._orderBy, { template: ['', ''], params: [template] }] })
+    } else {
+      return this.clone({ orderBy: [...this._orderBy, { template, params }] })
+    }
   }
 
   toSql (): [sql: string, params: any[]] {
     return new Chain([])
-      .SELECT(...merge(this._select))
+      .SELECT(...merge(this._select, ', '))
       .FROM([quoteTableName(this._from?.template[0] ?? '')])
       .if(this._join.length > 0, chain => chain.JOIN(...merge(this._join)))
       .if(this._where.length > 0, chain => this._where.reduce(
@@ -167,7 +176,7 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
           : chain.AND(where.template, ...where.params),
         chain
       ))
-      .if(this._orderBy.length > 0, chain => chain.ORDER_BY(...merge(this._orderBy)))
+      .if(this._orderBy.length > 0, chain => chain.ORDER_BY(...merge(this._orderBy, ', ')))
       .if(this._limit !== null, chain => chain.LIMIT(['', ''], this._limit!))
       .if(this._offset !== null, chain => chain.OFFSET(['', ''], this._offset!))
       .toSql()
