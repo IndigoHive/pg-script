@@ -121,3 +121,17 @@ db
   })
   .RETURNING`id`
 ```
+
+## Select where exists
+
+```sql
+SELECT id, name FROM "users" WHERE (EXISTS (SELECT id FROM "posts" WHERE author_id = users.id)) ORDER BY name ASC
+```
+
+```typescript
+db
+  .SELECT`id, name`
+  .FROM`users`
+  .WHERE(EXISTS(SELECT`id`.FROM`posts`.WHERE`author_id = users.id`))
+  .ORDER_BY`name ASC`
+```
