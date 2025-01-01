@@ -88,6 +88,14 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     return result.rows[0] ?? null
   }
 
+  async list<U extends QueryResultRow = T> (): Promise<U[]> {
+    const [sql, params] = this.toSql()
+
+    const result = await this.db.query<U>(sql, params)
+
+    return result.rows
+  }
+
   SELECT<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<U> {
     return this.clone({ select: [...this._select, { template, params }] })
   }
