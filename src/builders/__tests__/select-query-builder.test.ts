@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { SelectQueryBuilder } from '../select-query-builder'
-import { EXISTS, SELECT } from '../../chain'
+import { Chain, EXISTS, SELECT } from '../../chain'
 
 describe('SelectQueryBuilder', () => {
   test('SELECT id, name FROM "users" WHERE (id = $1) AND (status = $2)', () => {
@@ -110,5 +110,20 @@ describe('SelectQueryBuilder', () => {
       .toSql()
 
     expect(sql).toBe('SELECT from_account.name, to_account.name, transaction.amount FROM "transaction" JOIN account from_account ON from_account.id = transaction.from_account_id JOIN account to_account ON to_account.id = transaction.to_account_id')
+  })
+
+  test('SELECT id, title FROM "post" WHERE (author_id = $1)', () => {
+    const builder = new SelectQueryBuilder(null!)
+    const userId = 1
+    const chain = Chain.from`author_id = ${userId}`
+
+    const [sql, params] = builder
+      .SELECT`id, title`
+      .FROM`post`
+      .WHERE(chain)
+      .toSql()
+
+    expect(sql).toBe('SELECT id, title FROM "post" WHERE (author_id = $1)')
+    expect(params).toMatchObject([userId])
   })
 })

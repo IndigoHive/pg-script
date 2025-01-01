@@ -7,6 +7,10 @@ export class Chain {
     this._fragments = fragments
   }
 
+  static from (template: TemplateStringsArray | string[], ...params: any[]): Chain {
+    return new Chain([new Fragment(template, params)])
+  }
+
   if (
     condition: boolean,
     callback: (chain: this) => Chain
