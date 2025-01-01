@@ -68,6 +68,14 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     return condition ? callback(this) : this
   }
 
+  async count (): Promise<number> {
+    const [sql, params] = this.toSqlCount()
+
+    const result = await this.db.query<{ count: number }>(sql, params)
+
+    return result.rows[0].count
+  }
+
   async find<U extends QueryResultRow = T> (options: { error?: string } = {}): Promise<U> {
     const [sql, params] = this.LIMIT(1).toSql()
 
@@ -94,6 +102,19 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     const result = await this.db.query<U>(sql, params)
 
     return result.rows
+  }
+
+  async page<U extends QueryResultRow = T> (
+    pageNumber: number,
+    pageSize: number
+  ): Promise<{ rows: U[], count: number }> {
+    const limit = pageSize
+    const offset = pageNumber * pageSize
+
+    const rows = await this.LIMIT(limit).OFFSET(offset).list<U>()
+    const count = await this.count()
+
+    return { rows, count }
   }
 
   SELECT<U extends QueryResultRow = T> (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<U> {
@@ -173,6 +194,21 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     }
   }
 
+  async then<TResult1 = QueryResult<T>, TResult2 = never> (
+    onfulfilled: ((value: QueryResult<T>) => TResult1 | PromiseLike<TResult1>),
+    onrejected: ((reason: any) => TResult2 | PromiseLike<TResult2>)
+  ): Promise<TResult1 | TResult2> {
+    const [sql, params] = this.toSql()
+
+    try {
+      const result = await this.db.query<T>(sql, params)
+
+      return onfulfilled(result)
+    } catch (error) {
+      return onrejected(error)
+    }
+  }
+
   toSql (): [sql: string, params: any[]] {
     return new Chain([])
       .SELECT(...merge(this._select, ', '))
@@ -199,19 +235,27 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
       .toSql()
   }
 
-  async then<TResult1 = QueryResult<T>, TResult2 = never> (
-    onfulfilled: ((value: QueryResult<T>) => TResult1 | PromiseLike<TResult1>),
-    onrejected: ((reason: any) => TResult2 | PromiseLike<TResult2>)
-  ): Promise<TResult1 | TResult2> {
-    const [sql, params] = this.toSql()
-
-    try {
-      const result = await this.db.query<T>(sql, params)
-
-      return onfulfilled(result)
-    } catch (error) {
-      return onrejected(error)
-    }
+  private toSqlCount (): [sql: string, params: any[]] {
+    return new Chain([])
+      .SELECT`COUNT(*)::int as "count"`
+      .FROM([quoteTableName(this._from?.template[0] ?? '')])
+      .if(this._join.length > 0, chain => this._join.reduce(
+        (chain, join) => {
+          if (join.clause === 'LEFT JOIN') {
+            return chain.LEFT_JOIN(join.template, ...join.params)
+          } else {
+            return chain.JOIN(join.template, ...join.params)
+          }
+        },
+        chain
+      ))
+      .if(this._where.length > 0, chain => this._where.reduce(
+        (chain, where, index) => index === 0
+          ? chain.WHERE(where.template, ...where.params)
+          : chain.AND(where.template, ...where.params),
+        chain
+      ))
+      .toSql()
   }
 
   private clone<U extends QueryResultRow = T> (partial: {
