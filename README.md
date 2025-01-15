@@ -135,3 +135,71 @@ db
   .WHERE(EXISTS(SELECT`id`.FROM`posts`.WHERE`author_id = users.id`))
   .ORDER_BY`name ASC`
 ```
+
+## Helper methods
+
+Without helper methods, running the query returns the default pg result:
+
+```typescript
+// Destructuring rows
+const { rows, rowCount } = await db
+  .SELECT`id, name`
+  .FROM`user`
+
+// Destructuring the first row
+const { rows: [firstRow] } = await db
+  .SELECT`name`
+  .FROM`user`
+  .WHERE`id = ${userId}`
+```
+
+Helper methods are available to reduce the need for destructuring for common use cases.
+
+### `find()`
+
+Returns the first result. If there is none, throws an error. Accepts an optional error message.
+
+```typescript
+const row = await db
+  .SELECT`name`
+  .FROM`user`
+  .WHERE`id = ${userId}`
+  .find({ error: `User with id ${userId} not found` })
+```
+
+### `first()`
+
+Returns the first result. If there is none, returns null instead.
+
+```typescript
+const row = await db
+  .SELECT`name`
+  .FROM`user`
+  .WHERE`id = ${userId}`
+  .first()
+```
+
+### `list()`
+
+Returns the rows of the result.
+
+```typescript
+const rows = await db
+  .SELECT`id, name`
+  .FROM`user`
+  .list()
+```
+
+### `page(number, number)`
+
+Returns the rows along with a count. Useful for pagination.
+
+```typescript
+const pageNumber = 0
+const pageSize = 10
+
+const { rows, count } = await db
+  .SELECT`id, name`
+  .FROM`user`
+  .page(pageNumber, pageSize)
+```
