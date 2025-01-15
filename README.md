@@ -38,7 +38,7 @@ async function main () {
     .toSql()
 
   // Just generate the SQL
-  const [sql, params] = db
+  const sql = db
     .SELECT`id, title`
     .FROM`posts`
     .WHERE`status = ${status}`
