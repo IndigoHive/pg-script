@@ -30,6 +30,11 @@ type OrderByValue = {
   params: any[]
 }
 
+type GroupByValue = {
+  template: TemplateStringsArray | string[]
+  params: any[]
+}
+
 export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike<QueryResult<T>> {
   private db: Database
 
@@ -40,6 +45,7 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
   private _limit: number | null
   private _offset: number | null
   private _orderBy: OrderByValue[]
+  private _groupBy: GroupByValue[]
 
   constructor (
     db: Database,
@@ -49,7 +55,8 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     where: WhereValue[] = [],
     limit: number | null = null,
     offset: number | null = null,
-    orderBy: OrderByValue[] = []
+    orderBy: OrderByValue[] = [],
+    groupBy: GroupByValue[] = []
   ) {
     this.db = db
     this._select = select
@@ -59,6 +66,7 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     this._limit = limit
     this._offset = offset
     this._orderBy = orderBy
+    this._groupBy = groupBy
   }
 
   if (
@@ -194,6 +202,20 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     }
   }
 
+  GROUP_BY (chain: Chain): SelectQueryBuilder<T>
+  GROUP_BY (template: TemplateStringsArray, ...params: any[]): SelectQueryBuilder<T>
+  GROUP_BY (
+    template: TemplateStringsArray | Chain,
+    ...params: any[]
+  ): SelectQueryBuilder<T> {
+    if (template instanceof Chain) {
+      return this.clone({ groupBy: [...this._groupBy, { template: ['', ''], params: [template] }] })
+    } else {
+      return this.clone({ groupBy: [...this._groupBy, { template, params }] })
+    }
+  }
+
+
   async then<TResult1 = QueryResult<T>, TResult2 = never> (
     onfulfilled: ((value: QueryResult<T>) => TResult1 | PromiseLike<TResult1>),
     onrejected: ((reason: any) => TResult2 | PromiseLike<TResult2>)
@@ -230,6 +252,7 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
         chain
       ))
       .if(this._orderBy.length > 0, chain => chain.ORDER_BY(...merge(this._orderBy, ', ')))
+      .if(this._groupBy.length > 0, chain => chain.GROUP_BY(...merge(this._groupBy, ', ')))
       .if(this._limit !== null, chain => chain.LIMIT(['', ''], this._limit!))
       .if(this._offset !== null, chain => chain.OFFSET(['', ''], this._offset!))
       .toSql()
@@ -266,6 +289,7 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
     limit?: SelectQueryBuilder<T>['_limit']
     offset?: SelectQueryBuilder<T>['_offset']
     orderBy?: SelectQueryBuilder<T>['_orderBy']
+    groupBy?: SelectQueryBuilder<T>['_groupBy']
   }): SelectQueryBuilder<U> {
     return new SelectQueryBuilder<U>(
       this.db,
@@ -275,7 +299,8 @@ export class SelectQueryBuilder<T extends QueryResultRow> implements PromiseLike
       partial.where ?? this._where,
       partial.limit ?? this._limit,
       partial.offset ?? this._offset,
-      partial.orderBy ?? this._orderBy
+      partial.orderBy ?? this._orderBy,
+      partial.groupBy ?? this._groupBy
     )
   }
 }
