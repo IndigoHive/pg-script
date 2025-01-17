@@ -48,8 +48,14 @@ export class InsertQueryBuilder<T extends QueryResultRow> implements PromiseLike
     this._set = set
   }
 
-  INSERT_INTO (template: TemplateStringsArray, ...params: any[]): InsertQueryBuilder<T> {
-    return this.clone({ insertInto: { template, params } })
+  INSERT_INTO (insertInto: string): InsertQueryBuilder<T>
+  INSERT_INTO (insertInto: TemplateStringsArray, ...params: any[]): InsertQueryBuilder<T>
+  INSERT_INTO (insertInto: TemplateStringsArray | string, ...params: any[]): InsertQueryBuilder<T> {
+    if (Array.isArray(insertInto)) {
+      return this.clone({ insertInto: { template: insertInto, params } })
+    } else {
+      return this.clone({ insertInto: { template: [insertInto as string], params: [] } })
+    }
   }
 
   VALUES (values: Record<string, any>): InsertQueryBuilder<T> {

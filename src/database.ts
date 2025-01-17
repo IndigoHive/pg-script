@@ -41,10 +41,10 @@ export class Database {
     return new SelectQueryBuilder<T>(this).SELECT(template, ...params)
   }
 
-  INSERT_INTO<T extends QueryResultRow = any> (
-    template: TemplateStringsArray, ...params: any[]
-  ) {
-    return new InsertQueryBuilder<T>(this).INSERT_INTO(template, ...params)
+  INSERT_INTO<T extends QueryResultRow> (insertInto: string): InsertQueryBuilder<T>
+  INSERT_INTO<T extends QueryResultRow> (insertInto: TemplateStringsArray, ...params: any[]): InsertQueryBuilder<T>
+  INSERT_INTO<T extends QueryResultRow> (insertInto: TemplateStringsArray | string, ...params: any[]): InsertQueryBuilder<T> {
+    return new InsertQueryBuilder<T>(this).INSERT_INTO(insertInto as any, ...params)
   }
 
   UPDATE<T extends QueryResultRow = any> (
