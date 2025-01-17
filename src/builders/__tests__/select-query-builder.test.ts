@@ -126,4 +126,17 @@ describe('SelectQueryBuilder', () => {
     expect(sql).toBe('SELECT id, title FROM "post" WHERE (author_id = $1)')
     expect(params).toMatchObject([userId])
   })
+
+  test('GROUP BY on select', () => {
+    const builder = new SelectQueryBuilder(null!)
+
+    const [sql] = builder
+      .SELECT`COUNT(*)`
+      .FROM`books`
+      .JOIN`author ON id = author_id`
+      .GROUP_BY`author_id`
+      .toSql()
+
+    expect(sql).toBe('SELECT COUNT(*) FROM "books" JOIN author ON id = author_id GROUP BY author_id')
+  })
 })
