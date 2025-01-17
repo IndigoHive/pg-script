@@ -103,6 +103,12 @@ export class Chain {
     return this.chainable('ORDER BY', templateOrChain, params)
   }
 
+  GROUP_BY (template: TemplateStringsArray | string[], ...params: any[]): Chain
+  GROUP_BY (chain: Chain): Chain
+  GROUP_BY (templateOrChain: TemplateStringsArray | string[] | Chain, ...params: any[]): Chain {
+    return this.chainable('GROUP BY', templateOrChain, params)
+  }
+
   RETURNING (template: TemplateStringsArray | string[], ...params: any[]): Chain
   RETURNING (chain: Chain): Chain
   RETURNING (templateOrChain: TemplateStringsArray | string[] | Chain, ...params: any[]): Chain {
